@@ -148,6 +148,15 @@ asks again — the gate never "stays open" by accident.
 - No cap on how many tabs can be boosted at once — in practice this is
   fine for the handful of tabs someone actually boosts, but resource use
   with many simultaneous sessions hasn't been specifically tested.
+- While a tab is being boosted, some Chromium/browser and OS combinations
+  may keep a site's fullscreen video inside the captured tab instead of
+  hiding the browser UI. This is Chromium's capture-safe fullscreen behavior,
+  not a page-access limitation in the extension. It is visible in Chrome on
+  Windows, while browsers with custom fullscreen UI (such as Dia on macOS)
+  may appear to enter normal fullscreen. On affected browsers, enter browser
+  fullscreen first (for example, press **F11** in Chrome on Windows), then
+  enter the video's fullscreen mode; alternatively, turn boosting off before
+  entering fullscreen.
 - No EQ / bass-treble controls — gain and a limiter only, by design.
 - Not published to the Chrome Web Store; it's meant to be loaded unpacked
   for personal use.
