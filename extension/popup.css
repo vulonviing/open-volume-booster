@@ -301,6 +301,85 @@ body {
   color: #08150f;
 }
 
+/* --- "Boosting elsewhere" list --- */
+
+.elsewhere {
+  margin-bottom: 12px;
+}
+
+.elsewhere-heading {
+  margin: 0 0 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.elsewhere-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.elsewhere-jump {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.elsewhere-jump:hover { border-color: var(--text-dim); }
+.elsewhere-jump:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+.elsewhere-jump img {
+  flex: none;
+  border-radius: 2px;
+}
+
+.elsewhere-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.elsewhere-pct {
+  flex: none;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-weight: 600;
+  color: var(--boost);
+}
+
+.elsewhere-stop {
+  flex: none;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-dim);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.elsewhere-stop:hover { color: var(--hot); border-color: var(--hot); }
+.elsewhere-stop:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.elsewhere-stop:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* --- Confirm modal (safety gate) --- */
 
 .confirm {

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Open Volume Booster",
-  "version": "1.1.1",
-  "description": "Local, open-source volume booster. Boosts or lowers the active tab's audio from 0% to 800% using the Web Audio API, with safety confirmations above 200%. No network access, no telemetry.",
+  "version": "1.2.0",
+  "description": "Local, open-source volume booster. Boosts or lowers multiple tabs' audio independently from 0% to 800% using the Web Audio API, with safety confirmations above 200%. No network access, no page content access, no telemetry.",
   "minimum_chrome_version": "116",
   "action": {
     "default_popup": "popup.html",
@@ -17,7 +17,7 @@
   "background": {
     "service_worker": "service-worker.js"
   },
-  "permissions": ["tabCapture", "offscreen", "storage"],
+  "permissions": ["tabCapture", "offscreen", "storage", "tabs"],
   "icons": {
     "16": "icons/16.png",
     "32": "icons/32.png",

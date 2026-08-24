@@ -9,6 +9,10 @@
 // boosted audio. The offscreen document is the only context that reliably
 // knows the live state (see its 'status' handler), so the popup asks it
 // directly instead of trusting anything cached here.
+//
+// Multiple tabs can be boosted at once -- every message below carries the
+// tabId it applies to, and offscreen.js keeps one independent audio
+// session per tab.
 
 async function ensureOffscreenDocument() {
   const existing = await chrome.runtime.getContexts({
@@ -33,22 +37,23 @@ async function startBoost(tabId, gain, limiter) {
   chrome.runtime.sendMessage({
     target: 'offscreen',
     type: 'start',
+    tabId,
     streamId,
     gain,
     limiter
   });
 }
 
-function setGain(gain) {
-  chrome.runtime.sendMessage({ target: 'offscreen', type: 'set-gain', gain });
+function setGain(tabId, gain) {
+  chrome.runtime.sendMessage({ target: 'offscreen', type: 'set-gain', tabId, gain });
 }
 
-function setLimiter(limiter) {
-  chrome.runtime.sendMessage({ target: 'offscreen', type: 'set-limiter', limiter });
+function setLimiter(tabId, limiter) {
+  chrome.runtime.sendMessage({ target: 'offscreen', type: 'set-limiter', tabId, limiter });
 }
 
-function stopBoost() {
-  chrome.runtime.sendMessage({ target: 'offscreen', type: 'stop' });
+function stopBoost(tabId) {
+  chrome.runtime.sendMessage({ target: 'offscreen', type: 'stop', tabId });
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -61,13 +66,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       await startBoost(tab.id, msg.gain, msg.limiter);
       sendResponse({ ok: true, tabId: tab.id });
     } else if (msg.type === 'set-gain') {
-      setGain(msg.gain);
+      setGain(msg.tabId, msg.gain);
       sendResponse({ ok: true });
     } else if (msg.type === 'set-limiter') {
-      setLimiter(msg.limiter);
+      setLimiter(msg.tabId, msg.limiter);
       sendResponse({ ok: true });
     } else if (msg.type === 'stop') {
-      stopBoost();
+      stopBoost(msg.tabId);
       sendResponse({ ok: true });
     }
   })();

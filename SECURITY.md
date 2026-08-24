@@ -7,8 +7,16 @@ doesn't do, and how to check it yourself in a few minutes.
 
 ## What it can access
 
-- **The active tab's audio**, only while you've pressed "Turn On", via
-  `chrome.tabCapture`.
+- **Any tab's audio**, only for tabs where you've pressed "Turn On", via
+  `chrome.tabCapture`. Multiple tabs can be boosted independently at once.
+- **The titles, URLs, and favicons of your open tabs** (the `tabs`
+  permission, added in v1.2.0). This is real information — it's what lets
+  the "Boosting elsewhere" list show which tab is boosted and at what
+  level, and lets clicking a row switch to it. It is limited to that
+  metadata: no page content, no ability to run code on any page, and it
+  does **not** come with `host_permissions` (still absent). If you'd
+  rather not grant this, don't load this version — v1.1.x works the same
+  way for a single tab without it.
 - **Two local storage values** (`gain`, `limiterEnabled`) in
   `chrome.storage.local`. Nothing else is stored.
 
@@ -27,8 +35,9 @@ doesn't do, and how to check it yourself in a few minutes.
 
 ## Where the captured audio goes
 
-The `MediaStream` from `chrome.tabCapture` is connected to exactly one
-chain in `extension/offscreen.js`:
+Each boosted tab gets its own `MediaStream` from `chrome.tabCapture`,
+connected to exactly one chain in `extension/offscreen.js` (one per tab,
+independent of any others):
 
 ```
 source → gainNode → [compressor, optional] → audioCtx.destination
@@ -67,8 +76,10 @@ print('externally_connectable present:', 'externally_connectable' in m)
 "
 ```
 
-Expected: `permissions` is exactly `['tabCapture', 'offscreen', 'storage']`,
-and the other three are all `False`.
+Expected: `permissions` is exactly
+`['tabCapture', 'offscreen', 'storage', 'tabs']`, and the other three
+(`host_permissions`, `content_scripts`, `externally_connectable`) are all
+`False`.
 
 ## Reporting an issue
 

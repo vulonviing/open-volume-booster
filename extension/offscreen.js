@@ -1,17 +1,14 @@
-// Runs in the offscreen document. Owns the AudioContext/GainNode/limiter.
-// Never makes a network request; only ever talks to the service worker
-// via chrome.runtime messages.
+// Runs in the offscreen document. Owns one AudioContext/GainNode/limiter
+// per boosted tab, so multiple tabs can be boosted independently at the
+// same time. Never makes a network request; only ever talks to the
+// service worker via chrome.runtime messages.
 //
-// Signal path:
+// Signal path per tab:
 //   source -> gainNode -> [compressor (limiter, optional)] -> destination
 // The compressor is spliced in/out by reconnecting gainNode, so toggling
-// the limiter never requires tearing down the capture stream.
+// the limiter never requires tearing down that tab's capture stream.
 
-let audioCtx = null;
-let gainNode = null;
-let compressor = null;
-let mediaStream = null;
-let limiterEnabled = true;
+const sessions = new Map(); // tabId -> { audioCtx, gainNode, compressor, mediaStream, limiterEnabled }
 
 const RAMP_SECONDS = 0.02; // avoids audible "click" on gain changes
 
@@ -25,19 +22,19 @@ function createCompressor(ctx) {
   return node;
 }
 
-function connectChain() {
-  gainNode.disconnect();
-  if (limiterEnabled) {
-    gainNode.connect(compressor).connect(audioCtx.destination);
+function connectChain(session) {
+  session.gainNode.disconnect();
+  if (session.limiterEnabled) {
+    session.gainNode.connect(session.compressor).connect(session.audioCtx.destination);
   } else {
-    gainNode.connect(audioCtx.destination);
+    session.gainNode.connect(session.audioCtx.destination);
   }
 }
 
-async function start(streamId, gain, limiter) {
-  await stop(); // clean any previous session first
+async function start(tabId, streamId, gain, limiter) {
+  await stop(tabId); // clean any previous session for this tab first
 
-  mediaStream = await navigator.mediaDevices.getUserMedia({
+  const mediaStream = await navigator.mediaDevices.getUserMedia({
     audio: {
       mandatory: {
         chromeMediaSource: 'tab',
@@ -46,66 +43,76 @@ async function start(streamId, gain, limiter) {
     }
   });
 
-  // If the captured tab closes (or Chrome revokes the capture for any
-  // other reason), the track ends on its own -- clean up immediately
-  // instead of leaving a dangling AudioContext. This is also the only
-  // reliable way to notice the tab closed: it doesn't depend on the
-  // service worker, which can be suspended and restarted by Chrome at
-  // any time, losing any in-memory bookkeeping it might have kept.
-  const [track] = mediaStream.getAudioTracks();
-  if (track) {
-    track.addEventListener('ended', () => { stop(); });
-  }
-
-  audioCtx = new AudioContext();
+  const audioCtx = new AudioContext();
   const source = audioCtx.createMediaStreamSource(mediaStream);
-  gainNode = audioCtx.createGain();
+  const gainNode = audioCtx.createGain();
   gainNode.gain.value = gain;
-  compressor = createCompressor(audioCtx);
-  limiterEnabled = limiter;
+  const compressor = createCompressor(audioCtx);
+
+  const session = { audioCtx, gainNode, compressor, mediaStream, limiterEnabled: limiter };
+  sessions.set(tabId, session);
 
   source.connect(gainNode);
-  connectChain();
-}
+  connectChain(session);
 
-function setGain(gain) {
-  if (!gainNode) return;
-  gainNode.gain.setTargetAtTime(gain, audioCtx.currentTime, RAMP_SECONDS);
-}
-
-function setLimiter(enabled) {
-  limiterEnabled = enabled;
-  if (audioCtx && gainNode) connectChain();
-}
-
-async function stop() {
-  if (mediaStream) {
-    mediaStream.getTracks().forEach((t) => t.stop());
-    mediaStream = null;
+  // If this tab closes (or Chrome revokes the capture for any other
+  // reason), the track ends on its own -- clean up just this tab's
+  // session immediately instead of leaving a dangling AudioContext.
+  // This is also the only reliable way to notice the tab closed: it
+  // doesn't depend on the service worker, which can be suspended and
+  // restarted by Chrome at any time, losing any in-memory bookkeeping.
+  const [track] = mediaStream.getAudioTracks();
+  if (track) {
+    track.addEventListener('ended', () => { stop(tabId); });
   }
-  if (audioCtx) {
-    await audioCtx.close();
-    audioCtx = null;
-  }
-  gainNode = null;
-  compressor = null;
+}
+
+function setGain(tabId, gain) {
+  const session = sessions.get(tabId);
+  if (!session) return;
+  session.gainNode.gain.setTargetAtTime(gain, session.audioCtx.currentTime, RAMP_SECONDS);
+}
+
+function setLimiter(tabId, enabled) {
+  const session = sessions.get(tabId);
+  if (!session) return;
+  session.limiterEnabled = enabled;
+  connectChain(session);
+}
+
+async function stop(tabId) {
+  const session = sessions.get(tabId);
+  if (!session) return;
+  sessions.delete(tabId);
+  session.mediaStream.getTracks().forEach((t) => t.stop());
+  await session.audioCtx.close();
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.target !== 'offscreen') return;
-  if (msg.type === 'start') start(msg.streamId, msg.gain, msg.limiter);
-  else if (msg.type === 'set-gain') setGain(msg.gain);
-  else if (msg.type === 'set-limiter') setLimiter(msg.limiter);
-  else if (msg.type === 'stop') stop();
-  else if (msg.type === 'status') {
+
+  if (msg.type === 'start') {
+    start(msg.tabId, msg.streamId, msg.gain, msg.limiter);
+  } else if (msg.type === 'set-gain') {
+    setGain(msg.tabId, msg.gain);
+  } else if (msg.type === 'set-limiter') {
+    setLimiter(msg.tabId, msg.limiter);
+  } else if (msg.type === 'stop') {
+    stop(msg.tabId);
+  } else if (msg.type === 'status') {
     // This document is the only place that actually knows whether
     // boosting is live -- the service worker's own memory can be wiped
     // and restarted by Chrome at any time, so the popup asks here
     // directly instead of trusting anything cached in the background.
-    sendResponse({
-      active: !!mediaStream,
-      gain: gainNode ? gainNode.gain.value : null,
-      limiterEnabled
-    });
+    const session = sessions.get(msg.tabId);
+    sendResponse(session
+      ? { active: true, gain: session.gainNode.gain.value, limiterEnabled: session.limiterEnabled }
+      : { active: false });
+  } else if (msg.type === 'status-all') {
+    sendResponse(Array.from(sessions, ([tabId, s]) => ({
+      tabId,
+      gain: s.gainNode.gain.value,
+      limiterEnabled: s.limiterEnabled
+    })));
   }
 });

@@ -14,6 +14,9 @@ const confirmBody = document.getElementById('confirm-body');
 const confirmCancel = document.getElementById('confirm-cancel');
 const confirmOk = document.getElementById('confirm-ok');
 
+const elsewhereSection = document.getElementById('elsewhere');
+const elsewhereList = document.getElementById('elsewhere-list');
+
 const SNAP_TARGET = 1; // gain 1.0 == 100%
 
 // --- Safety gate constants ---
@@ -31,6 +34,7 @@ let active = false;
 let extendedEnabled = false; // session-only; never persisted, always starts off
 let ackedBand = 0; // highest gain band the user has explicitly confirmed
 let lastAppliedGain = 1; // last gain actually sent to the audio chain
+let currentTabId = null; // the tab this popup instance is scoped to
 
 function pctOf(gain) {
   return Math.round(gain * 100);
@@ -194,7 +198,7 @@ function commitGain(gain) {
   render(gain, limiterInput.checked);
   chrome.storage.local.set({ gain });
   if (active) {
-    chrome.runtime.sendMessage({ target: 'service-worker', type: 'set-gain', gain });
+    chrome.runtime.sendMessage({ target: 'service-worker', type: 'set-gain', tabId: currentTabId, gain });
   }
 }
 
@@ -226,21 +230,106 @@ async function requestGain(gain, okLabel) {
 // might have kept. So on every popup open, ask the offscreen document
 // directly rather than assuming boosting is off just because this popup
 // instance is new.
-async function queryOffscreenStatus() {
+async function queryOffscreenStatus(tabId) {
   try {
-    const res = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'status' });
+    const res = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'status', tabId });
     return res || null;
   } catch {
     return null; // no offscreen document exists -> nothing is playing
   }
 }
 
+// --- "Boosting elsewhere" list ---
+// Multiple tabs can be boosted independently at once. This shows every
+// OTHER tab that's currently boosted -- read-only level + a stop button,
+// no remote fader (raising another tab's volume only happens from that
+// tab's own popup, so this never opens a second place high gain can be
+// applied without the usual checks). Queried once on open, not polled --
+// popups close as soon as they lose focus, so there's nothing to keep in
+// sync with while this one stays open.
+function buildElsewhereRow(tabId, gain, tab) {
+  const row = document.createElement('div');
+  row.className = 'elsewhere-row';
+
+  const jumpBtn = document.createElement('button');
+  jumpBtn.type = 'button';
+  jumpBtn.className = 'elsewhere-jump';
+  if (tab.title) jumpBtn.title = tab.title;
+
+  if (tab.favIconUrl) {
+    const icon = document.createElement('img');
+    icon.src = tab.favIconUrl;
+    icon.width = 14;
+    icon.height = 14;
+    icon.alt = '';
+    jumpBtn.append(icon);
+  }
+
+  const label = document.createElement('span');
+  label.className = 'elsewhere-title';
+  label.textContent = tab.title || `Tab ${tabId}`;
+  jumpBtn.append(label);
+
+  const pct = document.createElement('span');
+  pct.className = 'elsewhere-pct';
+  pct.textContent = pctOf(gain) + '%';
+  jumpBtn.append(pct);
+
+  jumpBtn.addEventListener('click', () => {
+    chrome.tabs.update(tabId, { active: true });
+  });
+
+  const stopBtn = document.createElement('button');
+  stopBtn.type = 'button';
+  stopBtn.className = 'elsewhere-stop';
+  stopBtn.textContent = 'Turn Off';
+  stopBtn.addEventListener('click', async () => {
+    stopBtn.disabled = true;
+    await chrome.runtime.sendMessage({ target: 'service-worker', type: 'stop', tabId });
+    row.remove();
+    if (!elsewhereList.children.length) elsewhereSection.hidden = true;
+  });
+
+  row.append(jumpBtn, stopBtn);
+  return row;
+}
+
+async function renderElsewhere(excludeTabId) {
+  let sessions;
+  try {
+    sessions = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'status-all' });
+  } catch {
+    sessions = null;
+  }
+  sessions = (sessions || []).filter((s) => s.tabId !== excludeTabId);
+
+  elsewhereList.textContent = '';
+  if (sessions.length === 0) {
+    elsewhereSection.hidden = true;
+    return;
+  }
+
+  for (const s of sessions) {
+    let tab = {};
+    try {
+      tab = await chrome.tabs.get(s.tabId);
+    } catch {
+      tab = {};
+    }
+    elsewhereList.append(buildElsewhereRow(s.tabId, s.gain, tab));
+  }
+  elsewhereSection.hidden = false;
+}
+
 (async () => {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  currentTabId = tab ? tab.id : null;
+
   const data = await chrome.storage.local.get(['gain', 'limiterEnabled']);
   const storedLimiter = data.limiterEnabled ?? true;
   const storedGain = data.gain ?? 1;
 
-  const status = await queryOffscreenStatus();
+  const status = currentTabId != null ? await queryOffscreenStatus(currentTabId) : null;
 
   if (status && status.active) {
     active = true;
@@ -276,6 +365,8 @@ async function queryOffscreenStatus() {
     fader.value = gain;
     render(gain, storedLimiter);
   }
+
+  if (currentTabId != null) await renderElsewhere(currentTabId);
 })();
 
 // --- Fader ---
@@ -315,7 +406,7 @@ limiterInput.addEventListener('change', () => {
   render(currentGain(), limiterEnabled);
   chrome.storage.local.set({ limiterEnabled });
   if (active) {
-    chrome.runtime.sendMessage({ target: 'service-worker', type: 'set-limiter', limiter: limiterEnabled });
+    chrome.runtime.sendMessage({ target: 'service-worker', type: 'set-limiter', tabId: currentTabId, limiter: limiterEnabled });
   }
 });
 
@@ -362,13 +453,14 @@ toggleBtn.addEventListener('click', async () => {
     });
     if (res && res.ok) {
       active = true;
+      currentTabId = res.tabId; // matches chrome.tabs.query result from load, kept in sync defensively
       lastAppliedGain = gain;
       toggleBtn.textContent = 'Turn Off';
       toggleBtn.classList.add('on');
       statusDot.classList.add('on');
     }
   } else {
-    await chrome.runtime.sendMessage({ target: 'service-worker', type: 'stop' });
+    await chrome.runtime.sendMessage({ target: 'service-worker', type: 'stop', tabId: currentTabId });
     active = false;
     ackedBand = 0;
     toggleBtn.textContent = 'Turn On';

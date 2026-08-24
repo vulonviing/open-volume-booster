@@ -1,11 +1,12 @@
 # Open Volume Booster
 
 A local, open-source, single-user volume booster for Chromium-based browsers
-(Chrome, Dia, Arc, Edge, Brave). Boosts or lowers the active tab's audio from
-**0% to 800%**, with an optional limiter to keep high gain from clipping.
+(Chrome, Dia, Arc, Edge, Brave). Boosts or lowers any tab's audio from
+**0% to 800%**, independently per tab, with an optional limiter to keep
+high gain from clipping.
 
-No network access. No telemetry. No page access. Everything you need to
-verify that is in this repo — it's a few hundred lines of plain JS.
+No network access. No page content access. No telemetry. Everything you
+need to verify that is in this repo — it's a few hundred lines of plain JS.
 
 ## Why this exists
 
@@ -17,10 +18,11 @@ this one doesn't ask for that.
 
 This project is for anyone who wants the same functionality without having
 to trust a closed, unreviewable extension: it's small enough to read in full,
-asks for exactly three permissions, and everything it does is verifiable
-from the source. Security isn't an afterthought here — it's the entire
-reason this exists. See [`SECURITY.md`](SECURITY.md) for the exact
-guarantees this project holds itself to and how to verify them yourself.
+asks for a handful of narrow permissions instead of blanket page access, and
+everything it does is verifiable from the source. Security isn't an
+afterthought here — it's the entire reason this exists. See
+[`SECURITY.md`](SECURITY.md) for the exact guarantees this project holds
+itself to and how to verify them yourself.
 
 ## Install (unpacked, local use)
 
@@ -51,6 +53,34 @@ popup.js  →  service-worker.js  →  offscreen.js
 
 Gain and limiter state persist in `chrome.storage.local` between popup
 opens; nothing leaves the device.
+
+## Boosting multiple tabs
+
+Each tab gets its own independent boost session — the offscreen document
+keeps a separate `AudioContext`/`GainNode`/limiter per tab, so you can boost
+tab A to 250% and tab B to 150% at the same time, and adjusting one never
+touches the other.
+
+Open the popup on any tab and it shows two things:
+
+- **The current tab's controls** — the same fader/presets/limiter/Turn On
+  as always, scoped to whichever tab the popup was opened from.
+- **"Boosting elsewhere"** — every *other* tab that's currently boosted,
+  listed by its title, favicon, and current level. Click a row to switch to
+  that tab, or hit its **Turn Off** to stop it without leaving the tab
+  you're on. This list is read-only otherwise — you can't raise another
+  tab's volume remotely, only from that tab's own popup, so there's exactly
+  one place a high-gain confirmation can ever be skipped by mistake.
+
+This is why the extension asks for the **`tabs`** permission (new in
+v1.2.0, on top of `tabCapture`/`offscreen`/`storage`): showing that list
+needs each boosted tab's title and favicon, which requires being able to
+see basic metadata for your open tabs. To be precise about what that does
+and doesn't mean: it lets the extension see the **titles, URLs, and
+favicons of all your open tabs** — real information about what sites you
+have open. It does **not** grant access to page content, does not let the
+extension run code on any page, and does not add any `host_permissions` —
+those stay absent. See [`SECURITY.md`](SECURITY.md) for the full picture.
 
 ## The fader
 
@@ -107,15 +137,17 @@ asks again — the gate never "stays open" by accident.
 
 ## Limitations
 
-- Boosts one tab at a time (starting a new tab's boost implicitly replaces
-  the previous one, matching how `chrome.tabCapture` works).
-- Closing the boosted tab stops capture automatically; reopening the popup
-  requires pressing "Turn On" again.
+- Closing a boosted tab stops its capture automatically; reopening the
+  popup on a new tab requires pressing "Turn On" again for that tab.
 - Switching to a different tab, or closing the popup, does **not** stop
-  boosting — the original tab keeps playing at the level you set.
-  Reopening the popup (even from a different tab) correctly shows whether
-  it's still on and lets you adjust or stop it, no matter how long it's
-  been since you last opened it.
+  boosting on the tab you were on — it keeps playing at the level you set,
+  independently of whatever tab you're currently looking at. Reopening the
+  popup (on that tab, or seeing it in "Boosting elsewhere" from another
+  one) correctly shows whether it's still on and lets you adjust or stop
+  it, no matter how long it's been.
+- No cap on how many tabs can be boosted at once — in practice this is
+  fine for the handful of tabs someone actually boosts, but resource use
+  with many simultaneous sessions hasn't been specifically tested.
 - No EQ / bass-treble controls — gain and a limiter only, by design.
 - Not published to the Chrome Web Store; it's meant to be loaded unpacked
   for personal use.
