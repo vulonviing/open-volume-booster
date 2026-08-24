@@ -175,6 +175,15 @@ async function confirmBandIfNeeded(pct, okLabel) {
   return approved;
 }
 
+// Turn On gets its own confirmation on top of the band gate above, every
+// single time, even if this exact level was already confirmed while
+// dragging the fader. Starting playback is the moment sound actually
+// reaches your ears/speakers, so it's worth a second, independent check.
+async function confirmTurnOn(pct) {
+  if (pct < WARN_FLOOR_PCT) return true;
+  return askConfirm(buildBoostCopy(pct, 'Turn on anyway'));
+}
+
 // --- Committing gain to the audio chain ---
 
 function commitGain(gain) {
@@ -224,19 +233,14 @@ chrome.storage.local.get(['gain', 'limiterEnabled'], (data) => {
 });
 
 // --- Fader ---
-// While the extension is off, nothing is actually playing yet, so moving
-// the fader is free — no audio is at risk. The one gate that matters is
-// "am I about to start boosting at a high level", which lives on Turn On
-// below. While it's ON, though, every step change is live, so crossing
-// into a new band still needs its own confirmation before it's applied.
+// Every time the fader (or a preset) crosses into a new +50% band, past
+// 200%, it asks for confirmation — whether boosting is on or off. This is
+// deliberately not skipped while off: it's the moment the user commits to
+// a target level, and asking early means Turn On isn't the first and only
+// time they see the risk.
 fader.addEventListener('input', () => {
   let gain = currentGain();
   if (Math.abs(gain - SNAP_TARGET) < 0.03) gain = SNAP_TARGET;
-
-  if (!active) {
-    commitGain(gain);
-    return;
-  }
 
   const pct = pctOf(gain);
   if (bandOfPct(pct) <= ackedBand) {
@@ -247,7 +251,6 @@ fader.addEventListener('input', () => {
 });
 
 fader.addEventListener('change', async () => {
-  if (!active) return; // already applied via 'input'; nothing live to protect
   const gain = currentGain();
   await requestGain(gain, 'Boost anyway');
 });
@@ -256,12 +259,7 @@ fader.addEventListener('change', async () => {
 presets.forEach((btn) => {
   btn.addEventListener('click', async () => {
     if (btn.disabled) return;
-    const gain = parseFloat(btn.dataset.gain);
-    if (!active) {
-      commitGain(gain);
-      return;
-    }
-    await requestGain(gain, 'Boost anyway');
+    await requestGain(parseFloat(btn.dataset.gain), 'Boost anyway');
   });
 });
 
@@ -303,7 +301,10 @@ toggleBtn.addEventListener('click', async () => {
   if (!active) {
     const gain = currentGain();
     const pct = pctOf(gain);
-    const approved = await confirmBandIfNeeded(pct, 'Turn on anyway');
+    // The fader's own band gate has already been satisfied to get the
+    // value this high; this is the separate, always-asked check for the
+    // act of turning on itself.
+    const approved = await confirmTurnOn(pct);
     if (!approved) return;
 
     const limiter = limiterInput.checked;

@@ -91,15 +91,14 @@ This isn't just a disclaimer — a few concrete reasons it matters:
   (laptops especially) have the least headroom.
 
 Because of this, the extension itself gates high gain instead of just
-warning about it in a README nobody reads mid-click. The gate only fires
-at the moment audio would actually get louder — moving the fader while
-boosting is off is just picking a target, not making sound:
+warning about it in a README nobody reads mid-click:
 
 | Situation | What happens |
 |---|---|
-| Fader below 200%, at any time | No prompt |
-| Pressing **Turn On** with the fader at 200%+ | A confirmation dialog appears before boosting starts — nothing plays louder until you approve it |
-| Fader raised past a new +50% band **while already on** | Confirmed again, live, before that step is applied — sliding from 200% to 800% while boosting asks more than once |
+| Fader below 200% | No prompt |
+| Fader raised past a new +50% band | Confirmed before that value is applied — this happens whether boosting is on or off, so you see the warning the moment you commit to a level, not just at Turn On |
+| Pressing **Turn On** with the fader at 200%+ | Confirmed *again*, separately, every time — even if that exact level was already approved while dragging. Starting playback is the moment sound actually reaches your ears or speakers, so it gets its own check |
+| Fader raised further **while already on** | Same per-band confirmation as above, applied live — sliding from 200% to 800% while boosting asks more than once |
 | Above 300% | Locked behind a separate **Extended boost** toggle (off by default, resets every time you reopen the popup), which has its own warning |
 
 Canceling a prompt reverts the fader and never touches the actual volume.
