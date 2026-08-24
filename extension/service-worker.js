@@ -1,8 +1,14 @@
 // Open Volume Booster — background service worker.
 // No network calls anywhere in this file (or the extension). Everything is
 // local: chrome.tabCapture -> offscreen document -> Web Audio GainNode.
-
-let boostedTabId = null;
+//
+// This file intentionally keeps no in-memory "is boosting active" state of
+// its own. MV3 service workers are suspended and restarted by Chrome at
+// any time (e.g. ~30s of inactivity), which would silently wipe any such
+// state even while the offscreen document is still actually playing
+// boosted audio. The offscreen document is the only context that reliably
+// knows the live state (see its 'status' handler), so the popup asks it
+// directly instead of trusting anything cached here.
 
 async function ensureOffscreenDocument() {
   const existing = await chrome.runtime.getContexts({
@@ -24,8 +30,6 @@ async function startBoost(tabId, gain, limiter) {
     targetTabId: tabId
   });
 
-  boostedTabId = tabId;
-
   chrome.runtime.sendMessage({
     target: 'offscreen',
     type: 'start',
@@ -45,7 +49,6 @@ function setLimiter(limiter) {
 
 function stopBoost() {
   chrome.runtime.sendMessage({ target: 'offscreen', type: 'stop' });
-  boostedTabId = null;
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -66,15 +69,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     } else if (msg.type === 'stop') {
       stopBoost();
       sendResponse({ ok: true });
-    } else if (msg.type === 'status') {
-      sendResponse({ ok: true, boostedTabId });
     }
   })();
 
   return true; // keep the message channel open for the async response
-});
-
-// If the boosted tab is closed, clean up state (the capture stream dies with it).
-chrome.tabs.onRemoved.addListener((tabId) => {
-  if (tabId === boostedTabId) boostedTabId = null;
 });

@@ -111,6 +111,11 @@ asks again — the gate never "stays open" by accident.
   the previous one, matching how `chrome.tabCapture` works).
 - Closing the boosted tab stops capture automatically; reopening the popup
   requires pressing "Turn On" again.
+- Switching to a different tab, or closing the popup, does **not** stop
+  boosting — the original tab keeps playing at the level you set.
+  Reopening the popup (even from a different tab) correctly shows whether
+  it's still on and lets you adjust or stop it, no matter how long it's
+  been since you last opened it.
 - No EQ / bass-treble controls — gain and a limiter only, by design.
 - Not published to the Chrome Web Store; it's meant to be loaded unpacked
   for personal use.

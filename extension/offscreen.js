@@ -46,6 +46,17 @@ async function start(streamId, gain, limiter) {
     }
   });
 
+  // If the captured tab closes (or Chrome revokes the capture for any
+  // other reason), the track ends on its own -- clean up immediately
+  // instead of leaving a dangling AudioContext. This is also the only
+  // reliable way to notice the tab closed: it doesn't depend on the
+  // service worker, which can be suspended and restarted by Chrome at
+  // any time, losing any in-memory bookkeeping it might have kept.
+  const [track] = mediaStream.getAudioTracks();
+  if (track) {
+    track.addEventListener('ended', () => { stop(); });
+  }
+
   audioCtx = new AudioContext();
   const source = audioCtx.createMediaStreamSource(mediaStream);
   gainNode = audioCtx.createGain();
@@ -80,10 +91,21 @@ async function stop() {
   compressor = null;
 }
 
-chrome.runtime.onMessage.addListener((msg) => {
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.target !== 'offscreen') return;
   if (msg.type === 'start') start(msg.streamId, msg.gain, msg.limiter);
   else if (msg.type === 'set-gain') setGain(msg.gain);
   else if (msg.type === 'set-limiter') setLimiter(msg.limiter);
   else if (msg.type === 'stop') stop();
+  else if (msg.type === 'status') {
+    // This document is the only place that actually knows whether
+    // boosting is live -- the service worker's own memory can be wiped
+    // and restarted by Chrome at any time, so the popup asks here
+    // directly instead of trusting anything cached in the background.
+    sendResponse({
+      active: !!mediaStream,
+      gain: gainNode ? gainNode.gain.value : null,
+      limiterEnabled
+    });
+  }
 });

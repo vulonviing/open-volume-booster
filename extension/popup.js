@@ -219,18 +219,64 @@ async function requestGain(gain, okLabel) {
 }
 
 // --- Load saved state ---
-chrome.storage.local.get(['gain', 'limiterEnabled'], (data) => {
-  const limiterEnabled = data.limiterEnabled ?? true;
-  limiterInput.checked = limiterEnabled;
+// The offscreen document is the only context that reliably knows whether
+// boosting is actually live right now -- the service worker can be
+// suspended and restarted by Chrome at any time (e.g. after switching
+// tabs for a while), which would silently wipe any in-memory state it
+// might have kept. So on every popup open, ask the offscreen document
+// directly rather than assuming boosting is off just because this popup
+// instance is new.
+async function queryOffscreenStatus() {
+  try {
+    const res = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'status' });
+    return res || null;
+  } catch {
+    return null; // no offscreen document exists -> nothing is playing
+  }
+}
 
-  setFaderMax(SAFE_MAX); // extended always starts off
-
+(async () => {
+  const data = await chrome.storage.local.get(['gain', 'limiterEnabled']);
+  const storedLimiter = data.limiterEnabled ?? true;
   const storedGain = data.gain ?? 1;
-  const gain = Math.min(storedGain, SAFE_MAX);
-  lastAppliedGain = gain;
-  fader.value = gain;
-  render(gain, limiterEnabled);
-});
+
+  const status = await queryOffscreenStatus();
+
+  if (status && status.active) {
+    active = true;
+    toggleBtn.textContent = 'Turn Off';
+    toggleBtn.classList.add('on');
+    statusDot.classList.add('on');
+
+    const liveGain = status.gain ?? storedGain;
+    const liveLimiter = status.limiterEnabled ?? storedLimiter;
+    limiterInput.checked = liveLimiter;
+
+    if (liveGain > SAFE_MAX) {
+      // Already boosting above the default ceiling from an earlier
+      // session. Reflect that truthfully instead of clamping it (which
+      // would silently change what's actually playing) or re-prompting
+      // for a level that was already approved before.
+      extendedEnabled = true;
+      extendedInput.checked = true;
+      setFaderMax(FULL_MAX);
+    } else {
+      setFaderMax(SAFE_MAX);
+    }
+
+    lastAppliedGain = liveGain;
+    fader.value = liveGain;
+    render(liveGain, liveLimiter);
+  } else {
+    limiterInput.checked = storedLimiter;
+    setFaderMax(SAFE_MAX); // extended always starts off
+
+    const gain = Math.min(storedGain, SAFE_MAX);
+    lastAppliedGain = gain;
+    fader.value = gain;
+    render(gain, storedLimiter);
+  }
+})();
 
 // --- Fader ---
 // Every time the fader (or a preset) crosses into a new +50% band, past
