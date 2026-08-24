@@ -313,6 +313,15 @@ body {
   background: rgba(0, 0, 0, 0.55);
 }
 
+/* `.confirm[hidden]` has higher specificity than `.confirm`, so this wins
+   and actually hides the dialog. Without it, the `hidden` attribute is
+   silently ignored: an author-stylesheet `display: flex` on `.confirm`
+   always beats the UA stylesheet's `[hidden] { display: none }`, no
+   matter how `hidden` is toggled from JS. */
+.confirm[hidden] {
+  display: none;
+}
+
 .confirm-box {
   width: 100%;
   background: var(--panel);
