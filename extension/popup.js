@@ -224,9 +224,20 @@ chrome.storage.local.get(['gain', 'limiterEnabled'], (data) => {
 });
 
 // --- Fader ---
+// While the extension is off, nothing is actually playing yet, so moving
+// the fader is free — no audio is at risk. The one gate that matters is
+// "am I about to start boosting at a high level", which lives on Turn On
+// below. While it's ON, though, every step change is live, so crossing
+// into a new band still needs its own confirmation before it's applied.
 fader.addEventListener('input', () => {
   let gain = currentGain();
   if (Math.abs(gain - SNAP_TARGET) < 0.03) gain = SNAP_TARGET;
+
+  if (!active) {
+    commitGain(gain);
+    return;
+  }
+
   const pct = pctOf(gain);
   if (bandOfPct(pct) <= ackedBand) {
     commitGain(gain);
@@ -236,6 +247,7 @@ fader.addEventListener('input', () => {
 });
 
 fader.addEventListener('change', async () => {
+  if (!active) return; // already applied via 'input'; nothing live to protect
   const gain = currentGain();
   await requestGain(gain, 'Boost anyway');
 });
@@ -244,7 +256,12 @@ fader.addEventListener('change', async () => {
 presets.forEach((btn) => {
   btn.addEventListener('click', async () => {
     if (btn.disabled) return;
-    await requestGain(parseFloat(btn.dataset.gain), 'Boost anyway');
+    const gain = parseFloat(btn.dataset.gain);
+    if (!active) {
+      commitGain(gain);
+      return;
+    }
+    await requestGain(gain, 'Boost anyway');
   });
 });
 
