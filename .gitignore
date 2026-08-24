@@ -1,0 +1,33 @@
+# Agent/AI tooling (local only, not for end users)
+CLAUDE.md
+AGENTS.md
+PLUGINS.md
+.claude/
+.claude-plugin/
+.mcp.json
+.cursor/
+.cursorrules
+.aider*
+
+# Editors / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+
+# Secrets / env
+.env
+.env.*
+
+# Chrome extension packaging artifacts (.pem is a private signing key)
+*.pem
+*.crx
+
+# Python
+__pycache__/
+*.pyc
+
+# Misc
+node_modules/
+*.zip

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Open Volume Booster</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="header">
+    <img src="icons/32.png" width="20" height="20" alt="">
+    <span class="title">Open Volume Booster</span>
+    <span id="status-dot" class="status-dot" aria-hidden="true"></span>
+  </header>
+
+  <div class="strip">
+    <div id="readout" class="readout">100<span class="pct">%</span></div>
+    <input
+      id="fader"
+      class="fader"
+      type="range"
+      min="0" max="8" step="0.05" value="1"
+      aria-label="Volume gain"
+      aria-valuetext="100%"
+    >
+    <div class="ticks" aria-hidden="true">
+      <span>0</span><span>100</span><span>200</span><span>400</span><span>800</span>
+    </div>
+  </div>
+
+  <div class="presets" role="group" aria-label="Gain presets">
+    <button type="button" class="preset" data-gain="0.5">50%</button>
+    <button type="button" class="preset" data-gain="1">100%</button>
+    <button type="button" class="preset" data-gain="2">200%</button>
+    <button type="button" class="preset" data-gain="4">400%</button>
+    <button type="button" class="preset" data-gain="8">800%</button>
+  </div>
+
+  <label class="limiter-row">
+    <span>
+      <span class="limiter-label">Limiter</span>
+      <span class="limiter-caption">Prevents clipping at high gain</span>
+    </span>
+    <span class="switch">
+      <input id="limiter" type="checkbox" checked>
+      <span class="switch-track" aria-hidden="true"></span>
+    </span>
+  </label>
+
+  <p id="warning" class="warning" hidden>
+    ⚠ Above 400% without the limiter, audio will likely distort.
+  </p>
+
+  <button id="toggle" class="toggle" type="button">Turn On</button>
+
+  <footer class="footer">No network access · local only · v1.0.0</footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>
