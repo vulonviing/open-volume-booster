@@ -55,10 +55,12 @@ opens; nothing leaves the device.
 ## The fader
 
 The gain fader is a small mixing-console channel strip: the track is printed
-green (0–100%) → amber (100–400%) → red (400–800%), like ink on a hardware
+green (0–100%) → amber (100–400%) → red (above that), like ink on a hardware
 fader, so the danger zone is visible at a glance regardless of where the cap
 sits. 100% has a magnetic snap so finding "no boost" is easy. Preset buttons
-jump to 50/100/200/400/800%.
+jump to 50/100/200/400/800% — 400% and 800% are disabled until **Extended
+boost** is unlocked (see Safety below). The fader tops out at 300% by
+default and 800% once unlocked.
 
 ## Limiter
 
@@ -73,6 +75,34 @@ rather have raw, uncompressed gain and are prepared for distortion.
 800% gain on top of already-loud content can genuinely hurt your ears or
 your speakers. Start low, raise gradually, and use the limiter unless you
 have a specific reason not to.
+
+This isn't just a disclaimer — a few concrete reasons it matters:
+
+- **Hearing.** 800% gain on already-loud content can easily push past
+  100 dB SPL. The WHO's threshold for sustained-exposure hearing damage is
+  around 85 dB. Headphones and earbuds are riskier than speakers because
+  the sound has nowhere to go but your ear canal.
+- **The limiter caps distortion, not loudness.** Its job is to stop digital
+  clipping when gain gets high — it does not make a given volume level
+  hearing-safe. "No distortion" isn't the same as "safe."
+- **Speakers.** With the limiter off, high gain produces digital clipping —
+  a near-square waveform carrying far more high-frequency energy than
+  normal audio, which can overheat and blow a tweeter. Small speakers
+  (laptops especially) have the least headroom.
+
+Because of this, the extension itself gates high gain instead of just
+warning about it in a README nobody reads mid-click:
+
+| Gain | What happens |
+|---|---|
+| Below 200% | Applies immediately, no prompt |
+| 200% and up | A confirmation dialog appears **before** the volume actually changes — moving the fader there doesn't make sound louder until you approve it |
+| Every +50% past that | Confirmed again, separately — sliding from 200% to 800% asks more than once |
+| Above 300% | Locked behind a separate **Extended boost** toggle (off by default, resets every time you reopen the popup), which has its own warning |
+
+Canceling a prompt reverts the fader and never touches the actual volume.
+Dropping back below 200% clears the confirmations, so climbing back up
+asks again — the gate never "stays open" by accident.
 
 ## Limitations
 

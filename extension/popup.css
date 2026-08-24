@@ -103,13 +103,23 @@ body {
 .readout.zone-hot { color: var(--hot); }
 
 .ticks {
-  display: flex;
-  justify-content: space-between;
-  padding: 0 3px;
+  position: relative;
+  height: 11px;
+  margin: 0 3px;
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
   font-size: 9px;
   color: var(--text-dim);
 }
+
+.tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.tick:first-child { transform: none; }
+.tick:last-child { transform: translateX(-100%); }
 
 .fader {
   -webkit-appearance: none;
@@ -119,6 +129,9 @@ body {
   margin: 0;
   background: transparent;
   cursor: pointer;
+  /* Overridden inline by popup.js to match the current max (300% or 800%). */
+  --safe-stop: 33%;
+  --boost-stop: 100%;
 }
 
 .fader:focus-visible {
@@ -133,10 +146,10 @@ body {
   background: linear-gradient(
     to right,
     var(--safe) 0%,
-    var(--safe) 12.5%,
-    var(--boost) 12.5%,
-    var(--boost) 50%,
-    var(--hot) 50%,
+    var(--safe) var(--safe-stop),
+    var(--boost) var(--safe-stop),
+    var(--boost) var(--boost-stop),
+    var(--hot) var(--boost-stop),
     var(--hot) 100%
   );
 }
@@ -181,6 +194,11 @@ body {
   background: var(--accent);
   border-color: var(--accent);
 }
+.preset:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.preset:disabled:hover { color: var(--text-dim); border-color: var(--border); }
 
 /* --- Limiter toggle --- */
 
@@ -281,6 +299,68 @@ body {
 .toggle.on {
   background: var(--safe);
   color: #08150f;
+}
+
+/* --- Confirm modal (safety gate) --- */
+
+.confirm {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.confirm-box {
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.confirm-title {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--hot);
+}
+
+.confirm-body {
+  margin: 0 0 14px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.confirm-btn {
+  flex: 1;
+  padding: 8px 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.confirm-btn:hover { border-color: var(--text-dim); }
+.confirm-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.confirm-btn.danger {
+  background: var(--hot);
+  border-color: var(--hot);
+  color: #fff;
 }
 
 /* --- Footer --- */
